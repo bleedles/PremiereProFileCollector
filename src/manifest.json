@@ -1,0 +1,43 @@
+{
+  "id": "com.blakeneedleman.assetcollector",
+  "name": "Asset Collector",
+  "version": "1.0.0",
+  "main": "index.html",
+  "manifestVersion": 5,
+  "host": [
+    {
+      "app": "PPRO",
+      "minVersion": "24.0.0"
+    }
+  ],
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "assetCollectorPanel",
+      "label": {
+        "default": "Asset Collector"
+      }
+    }
+  ],
+  "requiredPermissions": [
+    "localFileSystem",
+    "launchProcess",
+    "network"
+  ],
+  "icons": [
+    {
+      "width": 23,
+      "height": 23,
+      "path": "icons/icon-dark.png",
+      "theme": ["dark", "medium"],
+      "scale": [1, 2]
+    },
+    {
+      "width": 23,
+      "height": 23,
+      "path": "icons/icon-light.png",
+      "theme": ["lightest", "light"],
+      "scale": [1, 2]
+    }
+  ]
+}
