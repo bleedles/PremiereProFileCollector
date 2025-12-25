@@ -10,6 +10,75 @@ Before running any tests, ensure you have:
 - Git configured (optional but recommended)
 - Administrator/sudo access for creating symbolic links
 
+## How a non-developer friend can help test Phase 5 (relinking)
+
+This is written for someone who just edits video and is not a developer.
+
+### What they will do (high level)
+1) Install the panel (development mode) so it shows up in Premiere.
+2) Open their own project and run the collector into a test folder.
+3) Send back the collected folder plus the rewritten project (once relinking is built) and a short report.
+
+### One-time setup
+**macOS:**
+1. Turn on debug mode for Premiere Pro:
+   - Open Terminal and run:
+     ```bash
+     defaults write com.adobe.PPRO.14 PlayerDebugMode 1
+     ```
+   - Restart Premiere Pro after this.
+2. Create the extensions folder if it does not exist:
+   ```bash
+   mkdir -p "$HOME/Library/Application Support/Adobe/CEP/extensions"
+   ```
+3. Copy the provided `src` folder (you can zip and send it to your friend) into a location they can keep, e.g. `~/PremiereTools/AssetCollector/src`.
+4. Create a shortcut so Premiere can see it:
+   ```bash
+   ln -s "~/PremiereTools/AssetCollector/src" \
+         "$HOME/Library/Application Support/Adobe/CEP/extensions/AssetCollector"
+   ```
+
+**Windows:**
+1. Turn on debug mode for Premiere Pro:
+   - Open `regedit`
+   - Go to `HKEY_CURRENT_USER/Software/Adobe/CSXS.11`
+   - Add DWORD `PlayerDebugMode` with value `1`
+   - Restart Premiere Pro after this.
+2. Create the extensions folder if it does not exist:
+   ```cmd
+   mkdir %APPDATA%\Adobe\CEP\extensions
+   ```
+3. Copy the provided `src` folder (zip it and send to your friend) somewhere like `C:\PremiereTools\AssetCollector\src`.
+4. Create a shortcut so Premiere can see it:
+   ```cmd
+   mklink /D "%APPDATA%\Adobe\CEP\extensions\AssetCollector" "C:\PremiereTools\AssetCollector\src"
+   ```
+
+### How to run the test
+1. Open Premiere Pro.
+2. Open their own project that has real media (video, audio, graphics).
+3. Open the panel: **Window > Extensions > Asset Collector**.
+4. Pick a destination folder (make a new empty folder on a fast drive).
+5. Choose options (leave defaults on if unsure).
+6. Click **Collect Files**.
+7. Wait for the progress bar to reach 100%.
+8. When done, note what the Results say (files collected, missing files, errors).
+
+### What to send back
+- The entire collected folder (zipped) that contains the copied media.
+- The project file after relinking (once relinking is implemented) or the original project file if relinking is not yet available.
+- A short note:
+  - Premiere version (e.g., 24.5)
+  - OS (macOS or Windows)
+  - Approx how many clips and total size
+  - Whether any files were reported missing or errors occurred
+
+### Tips for non-developers
+- If the panel does not show up, restart Premiere after creating the symlink/shortcut.
+- Keep the destination folder on a local drive (avoid slow network drives).
+- Do not close Premiere while collection is running.
+- If you see errors, take a screenshot of the panel and the Premiere console (Help > Debugging > Enable Remote Debugging, then open http://localhost:8090).
+
 ## General Setup
 
 ### 1. Enable Debug Mode
