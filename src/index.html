@@ -11,71 +11,98 @@
         <!-- Header -->
         <div class="header">
             <h1>Asset Collector</h1>
-            <p class="subtitle">Collect and consolidate project assets</p>
+            <p class="subtitle">Consolidate project assets into one folder</p>
         </div>
 
-        <!-- Destination Selection -->
+        <!-- Destination Selection Section -->
         <div class="section">
-            <label for="destinationPath">Destination Folder:</label>
+            <h2 class="section-title">Step 1: Select Destination</h2>
+            <label for="destinationPath" class="field-label">Destination Folder</label>
+            <p class="field-description">Where to copy all project assets</p>
             <div class="input-group">
-                <input type="text" id="destinationPath" placeholder="Select destination folder..." readonly>
+                <input type="text" id="destinationPath" placeholder="No folder selected..." readonly>
                 <button id="browseButton" class="btn btn-secondary">Browse</button>
             </div>
         </div>
 
-        <!-- Collection Options -->
+        <!-- Collection Options Section -->
         <div class="section">
-            <h3>Collection Options</h3>
-            <div class="option">
-                <input type="checkbox" id="includeUnused" checked>
-                <label for="includeUnused">Include unused clips</label>
-            </div>
-            <div class="option">
-                <input type="checkbox" id="maintainStructure" checked>
-                <label for="maintainStructure">Maintain folder structure</label>
-            </div>
-            <div class="option">
-                <input type="checkbox" id="consolidate" checked>
-                <label for="consolidate">Consolidate duplicate files</label>
+            <h2 class="section-title">Step 2: Configure Options</h2>
+            
+            <div class="options-group">
+                <div class="option-category">
+                    <h3 class="category-title">What to Collect</h3>
+                    <div class="option">
+                        <input type="checkbox" id="includeUnused" checked>
+                        <div class="option-content">
+                            <label for="includeUnused">Include unused clips</label>
+                            <p class="option-description">Collect all project assets, even if not used in sequences</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="option-category">
+                    <h3 class="category-title">Folder Organization</h3>
+                    <div class="option">
+                        <input type="checkbox" id="maintainStructure" checked>
+                        <div class="option-content">
+                            <label for="maintainStructure">Maintain folder structure</label>
+                            <p class="option-description">Recreate original project bin hierarchy</p>
+                        </div>
+                    </div>
+                    <div class="option">
+                        <input type="checkbox" id="consolidate" checked>
+                        <div class="option-content">
+                            <label for="consolidate">Consolidate duplicate files</label>
+                            <p class="option-description">Skip copying files that appear multiple times</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Action Button -->
-        <div class="section">
-            <button id="collectButton" class="btn btn-primary" disabled>Collect Files</button>
+        <div class="section action-section">
+            <button id="collectButton" class="btn btn-primary" disabled>
+                <span class="button-text">Collect Files</span>
+                <span class="button-hint">Select destination folder first</span>
+            </button>
         </div>
 
         <!-- Progress Section -->
         <div class="section" id="progressSection" style="display: none;">
-            <h3>Progress</h3>
-            <div class="progress-bar">
-                <div id="progressFill" class="progress-fill"></div>
+            <h2 class="section-title">Progress</h2>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill"></div>
+                </div>
+                <p id="progressText" class="progress-text">Preparing...</p>
+                <p id="progressSubtext" class="progress-subtext"></p>
             </div>
-            <p id="progressText" class="progress-text">Preparing...</p>
         </div>
 
         <!-- Results Section -->
         <div class="section" id="resultsSection" style="display: none;">
-            <h3>Results</h3>
-            <div class="results-grid">
+            <h2 class="section-title">Results</h2>
+            <div class="results-summary">
                 <div class="result-item">
-                    <span class="result-label">Files Collected:</span>
+                    <span class="result-label">Files Collected</span>
                     <span id="filesCollected" class="result-value">0</span>
                 </div>
                 <div class="result-item">
-                    <span class="result-label">Total Size:</span>
+                    <span class="result-label">Total Size</span>
                     <span id="totalSize" class="result-value">0 MB</span>
                 </div>
                 <div class="result-item">
-                    <span class="result-label">Missing Files:</span>
+                    <span class="result-label">Missing Files</span>
                     <span id="missingFiles" class="result-value">0</span>
                 </div>
                 <div class="result-item">
-                    <span class="result-label">Errors:</span>
+                    <span class="result-label">Errors</span>
                     <span id="errorCount" class="result-value">0</span>
                 </div>
             </div>
-            <div id="errorList" class="error-list"></div>
+            <div id="errorList" class="error-list" style="display: none;"></div>
         </div>
 
         <!-- Status Messages -->

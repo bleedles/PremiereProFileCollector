@@ -80,7 +80,15 @@ async function handleBrowseClick() {
         if (folder) {
             state.destinationFolder = folder;
             document.getElementById('destinationPath').value = folder.nativePath;
-            document.getElementById('collectButton').disabled = false;
+            
+            // Update button state
+            const collectButton = document.getElementById('collectButton');
+            collectButton.disabled = false;
+            const hint = collectButton.querySelector('.button-hint');
+            if (hint) {
+                hint.textContent = 'Ready to collect';
+            }
+            
             showStatus('Destination folder selected.', 'success');
         }
     } catch (error) {
@@ -233,12 +241,16 @@ async function performAssetCollection() {
 /**
  * Update progress bar and text
  */
-function updateProgress(percent, text) {
+function updateProgress(percent, text, subtext = '') {
     const progressFill = document.getElementById('progressFill');
     const progressText = document.getElementById('progressText');
+    const progressSubtext = document.getElementById('progressSubtext');
     
     progressFill.style.width = percent + '%';
     progressText.textContent = text || `${percent}% complete`;
+    if (subtext) {
+        progressSubtext.textContent = subtext;
+    }
 }
 
 /**
