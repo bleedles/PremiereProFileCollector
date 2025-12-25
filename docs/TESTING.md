@@ -257,11 +257,11 @@ For debugging JavaScript in the extension panel:
    - 2 audio files in another bin
    - 1 still image
    - All files in accessible locations (not network drives)
-⏸️ Deferred (Optional enhancement - core functionality complete without it)
+🔜 Planned (required for editor handoff)
 
-This phase would add automatic relinking of project file paths to point to collected assets. However, this is complex and may not be necessary since users can manually import the collected project.
+This phase will add automatic relinking of project file paths to the collected asset locations so the receiving editor opens the project with zero manual relinking.
 
-Deferred for potential future enhancement.esults display shows:
+Results display shows:
   - Files Collected: 6
   - Total Size: [correct size]
   - Missing Files: 0

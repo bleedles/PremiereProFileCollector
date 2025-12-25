@@ -143,13 +143,20 @@ PremierExtension/
 - [x] Add error handling and retry logic
 - [x] Handle file name conflicts (rename vs. skip vs. overwrite)
 
-### Phase 5: Project Relinking (OPTIONAL - Can be deferred)
-- [ ] Research project file format (.prproj)
-- [ ] Implement path updating logic
-- [ ] Save modified project to destination
-- [ ] Test with various project structures
+### Phase 5: Project Relinking (REQUIRED for handoff)
+- [ ] Research project file format (.prproj) and path references
+- [ ] Implement path updating logic for collected asset locations
+- [ ] Save modified project alongside collected assets
+- [ ] Test with varied project structures and nested sequences
 
-Note: Project relinking is complex and may not be essential for MVP. Users can manually relink after importing collected project.
+Project relinking is now in-scope because seamless handoff is the core goal: the receiving editor should open the collected project with zero manual relinking.
+
+**Initial implementation plan**
+- **Map path locations**: Identify XML nodes containing media references (absolute, relative, network) and sequence references; catalog schema differences across Premiere versions.
+- **Define rewrite rules**: For each folder mode (maintain/typed/flat), compute target paths, normalize separators, and prefer relative paths when possible.
+- **Apply rewrites safely**: Parse XML, rewrite paths, preserve encoding, and output to a new `.prproj` alongside collected assets; include checksum/backups.
+- **Validate and fail safe**: Re-open and sanity-check references; if rewrite fails, emit clear errors and keep original project untouched.
+- **Edge cases to cover**: Nested sequences, MOGRTs/templates, proxies, offline markers, network shares, drive-letter vs POSIX paths, and mixed slash styles.
 
 ### Phase 6: UI/UX ✅ COMPLETE
 - [x] Design panel layout and styling

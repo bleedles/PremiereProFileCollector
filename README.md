@@ -34,7 +34,7 @@ A professional UXP extension for Adobe Premiere Pro that consolidates all projec
 | 2 | Premiere Pro API Integration | ✅ Complete | 5/5 |
 | 3 | Asset Collection Logic | ✅ Complete | 4/5 |
 | 4 | File Operations | ✅ Complete | 5/5 |
-| 5 | Project Relinking | ⏸️ Deferred | - |
+| 5 | Project Relinking | 🔜 Planned (required for handoff) | 0/4 |
 | 6 | UI/UX Polish | ✅ Complete | 5/5 |
 | 7 | Testing & Refinement | 🔜 In Progress | 3/5 |
 | 8 | Documentation & Packaging | 📋 Planned | - |

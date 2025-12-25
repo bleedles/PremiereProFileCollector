@@ -12,7 +12,7 @@ The Adobe Premiere Pro Asset Collector Extension is **functionally complete** an
 | 2 | Premiere Pro API Integration | ✅ Complete | 100% |
 | 3 | Asset Collection Logic | ✅ Complete | 100% |
 | 4 | File Operations | ✅ Complete | 100% |
-| 5 | Project Relinking | ⏸️ Deferred | 0% |
+| 5 | Project Relinking | 🔜 Planned (required for handoff) | 0% |
 | 6 | UI/UX Polish | ✅ Complete | 100% |
 | 7 | Testing & Refinement | 🔜 In Progress | 20% |
 | 8 | Documentation & Packaging | 🔜 Planned | 0% |
@@ -53,23 +53,23 @@ The Adobe Premiere Pro Asset Collector Extension is **functionally complete** an
 - ✅ Detailed error messages in results
 - ✅ Generated content handling (no file path)
 
-## Deferred Features
+## Upcoming Critical Work
 
-### Phase 5: Project Relinking ⏸️
-**Status**: Deferred - Not essential for MVP
+### Phase 5: Project Relinking 🔜
+**Status**: Planned (required for handoff)
 
-**Reason**: 
-- Complex implementation (XML parsing)
-- Premiere Pro provides no relinking API
-- Users can manually import collected project
-- Can be added as future enhancement
+**Why it matters**: Seamless editor handoff with zero manual relinking. The collected project should open and play without Link Media prompts.
 
-**Alternative Approach**: 
-Users can:
-1. Collect assets using this extension
-2. Manually open the original project
-3. Import/relink to collected location
-4. Save new version
+**Near-term actions**:
+- Map `.prproj` path nodes (media references, sequences, templates, proxies)
+- Define rewrite rules per folder mode (maintain/by-type/flat), preferring relative paths
+- Prototype safe XML rewrite to new `.prproj`, keeping originals untouched
+- Add validation/rollback: verify rewritten paths, emit clear errors if any mapping fails
+
+**Risks**:
+- No first-class relinking API in UXP; requires careful XML manipulation
+- Different Premiere versions may vary in project schema
+- Network/relative paths and plugins/MOGRTs add complexity
 
 ## Current Testing Status
 
@@ -145,7 +145,7 @@ Bottleneck is primarily I/O speed (HDD vs SSD).
 
 ## Known Limitations
 
-1. **No project relinking** - Deferred to future enhancement
+1. **Project relinking not implemented yet** - Planned; requires `.prproj` path rewrite
 2. **No retry mechanism** - Failed files not automatically retried
 3. **No disk space check** - Doesn't validate available space
 4. **No operation cancellation** - Can't stop mid-copy
@@ -239,7 +239,6 @@ See [docs/README.md](docs/README.md) for detailed installation instructions.
 - Write release notes
 
 ### Future Enhancements (Post-MVP)
-- Project relinking (Phase 5)
 - Batch collection for multiple projects
 - Cloud storage integration
 - Auto-transcode during collection
