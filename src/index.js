@@ -4,13 +4,11 @@
  */
 
 const fs = require('uxp').storage.localFileSystem;
-const { app } = require('premierepro');
 
 // Import modules
-// These will be implemented in subsequent phases
-// const { collectAssets, getProjectAssets } = require('./js/assetCollector.js');
-// const { copyFiles, createFolderStructure } = require('./js/fileOperations.js');
-// const { getProject, saveProject } = require('./js/projectAPI.js');
+const { getProjectAssets, deduplicateAssets, categorizeAssets } = require('./js/assetCollector.js');
+const { copyFiles, createFolderStructure, calculateTotalSize } = require('./js/fileOperations.js');
+const { getProject, getProjectName, getProjectPath } = require('./js/projectAPI.js');
 
 // State management
 let state = {
@@ -19,7 +17,9 @@ let state = {
     options: {
         includeUnused: true,
         maintainStructure: true,
-        consolidate: true
+        consolidate: true,
+        organizeByType: false,
+        skipExisting: false
     }
 };
 
@@ -34,14 +34,14 @@ async function initialize() {
     
     // Check if a project is open
     try {
-        if (app && app.project) {
-            showStatus('Extension loaded. Select a destination folder to begin.', 'info');
-        } else {
-            showStatus('No project is currently open.', 'warning');
+        const project = await getProject();
+        if (project) {
+            const projectName = await getProjectName();
+            showStatus(`Extension loaded. Project: ${projectName}`, 'info');
         }
     } catch (error) {
         console.error('Error initializing:', error);
-        showStatus('Error initializing extension: ' + error.message, 'error');
+        showStatus('No project is currently open.', 'warning');
     }
 }
 
@@ -98,12 +98,14 @@ async function handleCollectClick() {
         return;
     }
     
-    if (!app || !app.project) {
-        showStatus('No project is currently open.', 'error');
-        return;
-    }
-    
     try {
+        // Check if project is open
+        const project = await getProject();
+        if (!project) {
+            showStatus('No project is currently open.', 'error');
+            return;
+        }
+        
         state.collectionInProgress = true;
         document.getElementById('collectButton').disabled = true;
         
@@ -112,10 +114,8 @@ async function handleCollectClick() {
         document.getElementById('resultsSection').style.display = 'none';
         
         showStatus('Starting asset collection...', 'info');
-        updateProgress(0, 'Analyzing project...');
         
-        // TODO: Implement asset collection logic
-        // This is a placeholder for Phase 2-4 implementation
+        // Perform asset collection
         await performAssetCollection();
         
     } catch (error) {
@@ -129,41 +129,105 @@ async function handleCollectClick() {
 }
 
 /**
- * Perform asset collection (placeholder for Phase 2-4 implementation)
+ * Perform asset collection
  */
 async function performAssetCollection() {
-    // Phase 2: Get project assets
-    updateProgress(10, 'Enumerating project items...');
-    
-    // Simulate work for now
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    updateProgress(30, 'Analyzing asset paths...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Phase 3: Collect and deduplicate assets
-    updateProgress(50, 'Preparing file list...');
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Phase 4: Copy files
-    updateProgress(70, 'Copying files...');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    updateProgress(90, 'Finalizing...');
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    updateProgress(100, 'Collection complete!');
-    
-    // Show results
-    showResults({
-        filesCollected: 0,
-        totalSize: 0,
-        missingFiles: 0,
-        errors: 0,
-        errorMessages: []
-    });
-    
-    showStatus('Asset collection completed successfully!', 'success');
+    try {
+        // Phase 2: Get project assets
+        updateProgress(10, 'Enumerating project items...');
+        const allAssets = await getProjectAssets(state.options);
+        
+        if (allAssets.length === 0) {
+            showStatus('No assets found in project.', 'warning');
+            updateProgress(100, 'No assets to collect.');
+            showResults({
+                filesCollected: 0,
+                totalSize: 0,
+                missingFiles: 0,
+                errors: 0,
+                errorMessages: []
+            });
+            return;
+        }
+        
+        console.log(`Fo20, `Found ${allAssets.length} assets. Analyzing...`);
+        
+        // Separate online and offline files
+        const onlineAssets = allAssets.filter(asset => !asset.isOffline);
+        const offlineAssets = allAssets.filter(asset => asset.isOffline);
+        
+        console.log(`Online: ${onlineAssets.length}, Offline: ${offlineAssets.length}`);
+        
+        if (onlineAssets.length === 0) {
+            showStatus('No online assets to copy. All files are offline.', 'warning');
+            updateProgress(100, 'No files to copy.');
+            showResults({
+                filesCollected: 0,
+                totalSize: 0,
+                missingFiles: offlineAssets.length,
+                errors: 0,
+                errorMessages: ['All assets are offline']
+            });
+            return;
+        }
+        
+        // Phase 3: Categorize assets
+        updateProgress(30, 'Categorizing assets...');
+        const categories = categorizeAssets(onlineAssets);
+        console.log('Categories:', {
+            video: categories.video.length,
+            audio: categories.audio.length,
+            image: categories.image.length,
+            other: categories.other.length
+        });
+        
+        // Calculate total size
+        updateProgress(40, 'Calculating file sizes...');
+        const totalSize = await calculateTotalSize(onlineAssets);
+        console.log(`Total size: ${formatBytes(totalSize)}`);
+        
+        // Phase 4: Copy files
+        updateProgress(50, 'Starting file copy...');
+        
+        const copyResults = await copyFiles(
+            onlineAssets,
+            state.destinationFolder,
+            state.options,
+            (progress, message) => {
+                // Map 0-100 of copy progress to 50-95 of overall progress
+                const overallProgress = 50 + Math.round(progress * 0.45);
+                updateProgress(overallProgress, message);
+            }
+        );
+        
+        updateProgress(100, 'Collection complete!');
+        
+        // Compile final results
+        const results = {
+            filesCollected: copyResults.success.length,
+            totalSize: copyResults.totalBytes,
+            missingFiles: offlineAssets.length,
+            errors: copyResults.failed.length,
+            errorMessages: copyResults.errors
+        };
+        
+        // Show results
+        showResults(results);
+        
+        if (results.errors > 0) {
+            showStatus(`Collection completed with ${results.errors} error(s).`, 'warning');
+        } else {
+            showStatus('Asset collection completed successfully!', 'success');
+        }
+        
+    } catch (error) {
+        console.error('Error in performAssetCollection:', error);
+        throw error;
+    }
+}
+
+// Remove simulateCopyFiles function - no longer needed       errorMessages: []
+    };
 }
 
 /**

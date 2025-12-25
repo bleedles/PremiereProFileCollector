@@ -3,35 +3,51 @@
  * Wrapper for Premiere Pro project interactions
  */
 
-const { app } = require('premierepro');
+// UXP API for Premiere Pro
+const ppro = require('premierepro');
 
 /**
  * Get current project
- * @returns {Project} Current Premiere Pro project
+ * @returns {Promise<Project>} Current Premiere Pro project
  */
-function getProject() {
-    if (!app || !app.project) {
+async function getProject() {
+    try {
+        const project = await ppro.Project.getActiveProject();
+        if (!project) {
+            throw new Error('No active project');
+        }
+        return project;
+    } catch (error) {
+        console.error('Error getting project:', error);
         throw new Error('No active project');
     }
-    return app.project;
 }
 
 /**
  * Get project name
- * @returns {string} Project name
+ * @returns {Promise<string>} Project name
  */
-function getProjectName() {
-    const project = getProject();
+async function getProjectName() {
+    const project = await getProject();
     return project.name || 'Untitled';
 }
 
 /**
  * Get project path
- * @returns {string} Project file path
+ * @returns {Promise<string>} Project file path
  */
-function getProjectPath() {
-    const project = getProject();
+async function getProjectPath() {
+    const project = await getProject();
     return project.path || '';
+}
+
+/**
+ * Get project document ID
+ * @returns {Promise<string>} Project document ID
+ */
+async function getProjectDocumentID() {
+    const project = await getProject();
+    return project.documentID || '';
 }
 
 /**
@@ -39,13 +55,10 @@ function getProjectPath() {
  * @returns {Promise<boolean>} Success status
  */
 async function saveProject() {
-    // TODO: Implement in Phase 5
-    
     try {
-        const project = getProject();
-        // Use Premiere Pro API to save project
-        // await project.save();
-        console.log('saveProject placeholder');
+        const project = await getProject();
+        await project.save();
+        console.log('Project saved successfully');
         return true;
     } catch (error) {
         console.error('Error saving project:', error);
@@ -59,13 +72,10 @@ async function saveProject() {
  * @returns {Promise<boolean>} Success status
  */
 async function saveProjectAs(newPath) {
-    // TODO: Implement in Phase 5
-    
     try {
-        const project = getProject();
-        // Use Premiere Pro API to save project as
-        // await project.saveAs(newPath);
-        console.log('saveProjectAs placeholder:', newPath);
+        const project = await getProject();
+        await project.saveAs(newPath);
+        console.log('Project saved as:', newPath);
         return true;
     } catch (error) {
         console.error('Error saving project as:', error);
@@ -94,13 +104,43 @@ function hasUnsavedChanges() {
     // TODO: Implement using Premiere Pro API
     return false;
 }
+Promise<boolean>} True if project has unsaved changes
+ */
+async function hasUnsavedChanges() {
+    try {
+        const project = await getProject();
+        // Note: UXP API may not expose isDirty flag
+        // This is a limitation we'll need to work around
+        return false;
+    } catch (error) {
+        console.error('Error checking unsaved changes:', error);
+        return false;
+    }
+}
+
+/**
+ * Close project
+ * @returns {Promise<boolean>} Success status
+ */
+async function closeProject() {
+    try {
+        const project = await getProject();
+        await project.close();
+        console.log('Project closed');
+        return true;
+    } catch (error) {
+        console.error('Error closing project:', error);
+        throw error;
+    }
+}
 
 module.exports = {
     getProject,
     getProjectName,
     getProjectPath,
+    getProjectDocumentID,
     saveProject,
     saveProjectAs,
     updateAssetPaths,
-    hasUnsavedChanges
-};
+    hasUnsavedChanges,
+    closeProject
