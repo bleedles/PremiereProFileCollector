@@ -163,15 +163,29 @@ function hasPathAttribute(element) {
 function decodePathUrl(pathUrl) {
     try {
         // Remove file:// protocol prefix
-        let path = pathUrl.replace(/^file:\/\/localhost\/?/, '');
-        path = path.replace(/^file:\/\/\//, '/');
-        path = path.replace(/^file:\/\//, '');
+        let path = pathUrl;
+
+        // Handle file://localhost/ format
+        if (path.startsWith('file://localhost/')) {
+            path = path.substring('file://localhost/'.length);
+        }
+        // Handle file:/// format (triple slash)
+        else if (path.startsWith('file:///')) {
+            path.substring('file:///'.length);
+        }
+        // Handle file:// format (double slash)
+        else if (path.startsWith('file://')) {
+            path = path.substring('file://'.length);
+        }
 
         // Decode URL encoding (%20, etc.)
         path = decodeURIComponent(path);
 
-        // Normalize path separators (handle Windows \ and Unix /)
-        // Keep original separator style for now
+        // For Unix paths that lost their leading slash, add it back
+        // But not for Windows paths (which start with drive letter)
+        if (path && !path.startsWith('/') && !path.match(/^[A-Za-z]:/)) {
+            path = '/' + path;
+        }
 
         return path;
     } catch (error) {
@@ -190,8 +204,16 @@ function encodePathUrl(path) {
         // Normalize separators to forward slash
         let normalized = path.replace(/\\/g, '/');
 
-        // Encode special characters but preserve /
-        const encoded = normalized.split('/').map(segment => {
+        // Check if Windows path (before encoding)
+        const isWindowsPath = normalized.match(/^[A-Za-z]:/);
+
+        // Encode special characters but preserve / and : (for Windows drive)
+        const segments = normalized.split('/');
+        const encoded = segments.map((segment, index) => {
+            // Don't encode Windows drive letter (e.g., C:)
+            if (index === 0 && isWindowsPath) {
+                return segment;
+            }
             return encodeURIComponent(segment);
         }).join('/');
 
@@ -199,312 +221,302 @@ function encodePathUrl(path) {
         // For absolute paths, add localhost
         if (encoded.startsWith('/')) {
             return 'file://localhost' + encoded;
-        } else if (encoded.match(/^[A-Za-z]:/)) {
-            // Windows absolute path
-            return 'file://localhost/' + encoded;
-        } else {
-            // Relative path
-            return encoded;
+        } else if (isWindowsPath) {
         }
-    } catch (error) {
-        console.error('Error encoding path URL:', path, error);
-        return path;
-    }
-}
 
-/**
- * Create mapping from old paths to new paths based on collected assets
- * @param {Array<Object>} pathReferences - Array of extracted path references
- * @param {Object} collectionResult - Result from asset collection with file mappings
- * @returns {Map<string, string>} Map of old paths to new paths
- */
-function createPathMapping(pathReferences, collectionResult) {
-    const mapping = new Map();
+        /**
+         * Create mapping from old paths to new paths based on collected assets
+         * @param {Array<Object>} pathReferences - Array of extracted path references
+         * @param {Object} collectionResult - Result from asset collection with file mappings
+         * @returns {Map<string, string>} Map of old paths to new paths
+         */
+        function createPathMapping(pathReferences, collectionResult) {
+            const mapping = new Map();
 
-    // collectionResult.copiedFiles is an array of { original, destination }
-    if (!collectionResult.copiedFiles) {
-        console.warn('No copied files in collection result');
-        return mapping;
-    }
-
-    // Create a lookup map for faster matching
-    const copiedFilesMap = new Map();
-    collectionResult.copiedFiles.forEach(({ original, destination }) => {
-        // Normalize paths for comparison
-        const normalizedOriginal = normalizePath(original);
-        copiedFilesMap.set(normalizedOriginal, destination);
-    });
-
-    // Map each path reference to its new location
-    pathReferences.forEach(ref => {
-        const normalizedPath = normalizePath(ref.path);
-        const newPath = copiedFilesMap.get(normalizedPath);
-
-        if (newPath) {
-            mapping.set(ref.path, newPath);
-            console.log(`Mapped: ${ref.path} -> ${newPath}`);
-        } else {
-            console.log(`No mapping found for: ${ref.path}`);
-        }
-    });
-
-    console.log(`Created ${mapping.size} path mappings`);
-    return mapping;
-}
-
-/**
- * Normalize path for comparison (handle separators and case)
- * @param {string} path - File system path
- * @returns {string} Normalized path
- */
-function normalizePath(path) {
-    // Convert all separators to forward slash
-    let normalized = path.replace(/\\/g, '/');
-
-    // On Windows, make case-insensitive
-    if (process.platform === 'win32') {
-        normalized = normalized.toLowerCase();
-    }
-
-    // Remove trailing slashes
-    normalized = normalized.replace(/\/+$/, '');
-
-    return normalized;
-}
-
-/**
- * Rewrite paths in XML document
- * @param {Document} xmlDoc - Parsed XML document
- * @param {Array<Object>} pathReferences - Array of path references to update
- * @param {Map<string, string>} pathMapping - Map of old paths to new paths
- * @returns {number} Number of paths updated
- */
-function rewritePaths(xmlDoc, pathReferences, pathMapping) {
-    let updatedCount = 0;
-
-    pathReferences.forEach(ref => {
-        const oldPath = ref.path;
-        const newPath = pathMapping.get(oldPath);
-
-        if (newPath) {
-            // Encode new path as URL
-            const encodedPath = encodePathUrl(newPath);
-
-            // Update the element
-            if (ref.attribute === 'textContent') {
-                ref.element.textContent = encodedPath;
-            } else {
-                ref.element.setAttribute(ref.attribute, encodedPath);
+            // collectionResult.copiedFiles is an array of { original, destination }
+            if (!collectionResult.copiedFiles) {
+                console.warn('No copied files in collection result');
+                return mapping;
             }
 
-            updatedCount++;
-        }
-    });
+            // Create a lookup map for faster matching
+            const copiedFilesMap = new Map();
+            collectionResult.copiedFiles.forEach(({ original, destination }) => {
+                // Normalize paths for comparison
+                const normalizedOriginal = normalizePath(original);
+                copiedFilesMap.set(normalizedOriginal, destination);
+            });
 
-    console.log(`Updated ${updatedCount} path references in project XML`);
-    return updatedCount;
-}
+            // Map each path reference to its new location
+            pathReferences.forEach(ref => {
+                const normalizedPath = normalizePath(ref.path);
+                const newPath = copiedFilesMap.get(normalizedPath);
 
-/**
- * Compress and save updated project file
- * @param {Document} xmlDoc - Updated XML document
- * @param {string} outputPath - Path where to save the updated project
- * @returns {Promise<boolean>} Success status
- */
-async function compressProject(xmlDoc, outputPath) {
-    try {
-        console.log('Compressing and saving project to:', outputPath);
+                if (newPath) {
+                    mapping.set(ref.path, newPath);
+                    console.log(`Mapped: ${ref.path} -> ${newPath}`);
+                } else {
+                    console.log(`No mapping found for: ${ref.path}`);
+                }
+            });
 
-        // Serialize XML to string
-        const serializer = new XMLSerializer();
-        const xmlString = serializer.serializeToString(xmlDoc);
-
-        // Compress as GZip
-        let compressedData;
-        try {
-            compressedData = await compressGZip(xmlString);
-        } catch (gzipError) {
-            console.warn('GZip compression failed, saving as plain XML:', gzipError);
-            // Fallback to plain XML if compression fails
-            compressedData = new TextEncoder().encode(xmlString);
+            console.log(`Created ${mapping.size} path mappings`);
+            return mapping;
         }
 
-        // Get parent folder
-        const parentPath = outputPath.substring(0, outputPath.lastIndexOf('/'));
-        const fileName = outputPath.substring(outputPath.lastIndexOf('/') + 1);
+        /**
+         * Normalize path for comparison (handle separators and case)
+         * @param {string} path - File system path
+         * @returns {string} Normalized path
+         */
+        function normalizePath(path) {
+            // Convert all separators to forward slash
+            let normalized = path.replace(/\\/g, '/');
 
-        const parentFolder = await fs.getEntryWithUrl('file://' + parentPath);
+            // On Windows, make case-insensitive
+            if (process.platform === 'win32') {
+                normalized = normalized.toLowerCase();
+            }
 
-        // Create file
-        const outputFile = await parentFolder.createFile(fileName, { overwrite: true });
+            // Remove trailing slashes
+            normalized = normalized.replace(/\/+$/, '');
 
-        // Write binary data
-        await outputFile.write(compressedData, { format: 'binary' });
-
-        console.log('Project file saved successfully');
-        return true;
-
-    } catch (error) {
-        console.error('Error compressing/saving project:', error);
-        throw new Error(`Failed to save project file: ${error.message}`);
-    }
-}
-
-/**
- * Compress data as GZip
- * @param {string} text - Text to compress
- * @returns {Promise<Uint8Array>} Compressed data
- */
-async function compressGZip(text) {
-    // Check if native CompressionStream is available
-    if (typeof CompressionStream !== 'undefined') {
-        try {
-            const stream = new CompressionStream('gzip');
-            const blob = new Blob([text]);
-            const compressedStream = blob.stream().pipeThrough(stream);
-            const compressedBlob = await new Response(compressedStream).blob();
-            return new Uint8Array(await compressedBlob.arrayBuffer());
-        } catch (e) {
-            console.error('CompressionStream failed:', e);
-            throw e;
-        }
-    }
-
-    // Fallback: Try using pako library if available
-    if (typeof pako !== 'undefined') {
-        const textEncoder = new TextEncoder();
-        const data = textEncoder.encode(text);
-        return pako.gzip(data);
-    }
-
-    throw new Error('No GZip compression available');
-}
-
-/**
- * Validate project XML structure
- * @param {Document} xmlDoc - XML document to validate
- * @returns {{valid: boolean, errors: Array<string>}} Validation result
- */
-function validateProject(xmlDoc) {
-    const errors = [];
-
-    // Check for parser errors
-    const parserError = xmlDoc.querySelector('parsererror');
-    if (parserError) {
-        errors.push('XML parsing error: ' + parserError.textContent);
-    }
-
-    // Check for root element
-    const root = xmlDoc.documentElement;
-    if (!root) {
-        errors.push('No root element found');
-        return { valid: false, errors };
-    }
-
-    // Check for expected Premiere Pro structure
-    const expectedRoots = ['PremiereData', 'xmeml', 'Project'];
-    if (!expectedRoots.includes(root.tagName)) {
-        errors.push(`Unexpected root element: ${root.tagName}`);
-    }
-
-    // Validate that paths are properly formatted
-    const pathElements = xmlDoc.querySelectorAll('[pathurl], [filepath]');
-    pathElements.forEach((element, index) => {
-        const pathurl = element.getAttribute('pathurl') || element.getAttribute('filepath');
-        if (pathurl && pathurl.includes('<') || pathurl.includes('>')) {
-            errors.push(`Invalid path format at element ${index}: contains XML characters`);
-        }
-    });
-
-    const valid = errors.length === 0;
-
-    if (valid) {
-        console.log('Project XML validation passed');
-    } else {
-        console.error('Project XML validation failed:', errors);
-    }
-
-    return { valid, errors };
-}
-
-/**
- * Main function: Relink project file with new asset paths
- * @param {string} projectPath - Path to original .prproj file
- * @param {string} outputPath - Path where to save updated .prproj file
- * @param {Object} collectionResult - Result from asset collection
- * @returns {Promise<{success: boolean, updatedPaths: number, errors: Array}>} Relinking result
- */
-async function relinkProject(projectPath, outputPath, collectionResult) {
-    const errors = [];
-
-    try {
-        console.log('Starting project relinking...');
-        console.log('Original project:', projectPath);
-        console.log('Output project:', outputPath);
-
-        // Step 1: Decompress and parse project
-        const { xmlDoc, originalXml } = await decompressProject(projectPath);
-
-        // Step 2: Extract paths
-        const pathReferences = extractPaths(xmlDoc);
-
-        if (pathReferences.length === 0) {
-            console.warn('No media paths found in project');
-            return {
-                success: true,
-                updatedPaths: 0,
-                errors: ['No media paths found in project']
-            };
+            return normalized;
         }
 
-        // Step 3: Create path mapping
-        const pathMapping = createPathMapping(pathReferences, collectionResult);
+        /**
+         * Rewrite paths in XML document
+         * @param {Document} xmlDoc - Parsed XML document
+         * @param {Array<Object>} pathReferences - Array of path references to update
+         * @param {Map<string, string>} pathMapping - Map of old paths to new paths
+         * @returns {number} Number of paths updated
+         */
+        function rewritePaths(xmlDoc, pathReferences, pathMapping) {
+            let updatedCount = 0;
 
-        if (pathMapping.size === 0) {
-            console.warn('No path mappings created');
-            return {
-                success: true,
-                updatedPaths: 0,
-                errors: ['No matching paths found to update']
-            };
+            pathReferences.forEach(ref => {
+                const oldPath = ref.path;
+                const newPath = pathMapping.get(oldPath);
+
+                if (newPath) {
+                    // Encode new path as URL
+                    const encodedPath = encodePathUrl(newPath);
+
+                    // Update the element
+                    if (ref.attribute === 'textContent') {
+                        ref.element.textContent = encodedPath;
+                    } else {
+                        ref.element.setAttribute(ref.attribute, encodedPath);
+                    }
+
+                    updatedCount++;
+                }
+            });
+
+            console.log(`Updated ${updatedCount} path references in project XML`);
+            return updatedCount;
         }
 
-        // Step 4: Rewrite paths
-        const updatedCount = rewritePaths(xmlDoc, pathReferences, pathMapping);
+        /**
+         * Compress and save updated project file
+         * @param {Document} xmlDoc - Updated XML document
+         * @param {string} outputPath - Path where to save the updated project
+         * @returns {Promise<boolean>} Success status
+         */
+        async function compressProject(xmlDoc, outputPath) {
+            try {
+                console.log('Compressing and saving project to:', outputPath);
 
-        // Step 5: Validate updated XML
-        const validation = validateProject(xmlDoc);
-        if (!validation.valid) {
-            throw new Error('Project validation failed: ' + validation.errors.join(', '));
+                // Serialize XML to string
+                const serializer = new XMLSerializer();
+                const xmlString = serializer.serializeToString(xmlDoc);
+
+                // Compress as GZip
+                let compressedData;
+                try {
+                    compressedData = await compressGZip(xmlString);
+                } catch (gzipError) {
+                    console.warn('GZip compression failed, saving as plain XML:', gzipError);
+                    // Fallback to plain XML if compression fails
+                    compressedData = new TextEncoder().encode(xmlString);
+                }
+
+                // Get parent folder
+                const parentPath = outputPath.substring(0, outputPath.lastIndexOf('/'));
+                const fileName = outputPath.substring(outputPath.lastIndexOf('/') + 1);
+
+                const parentFolder = await fs.getEntryWithUrl('file://' + parentPath);
+
+                // Create file
+                const outputFile = await parentFolder.createFile(fileName, { overwrite: true });
+
+                // Write binary data
+                await outputFile.write(compressedData, { format: 'binary' });
+
+                console.log('Project file saved successfully');
+                return true;
+
+            } catch (error) {
+                console.error('Error compressing/saving project:', error);
+                throw new Error(`Failed to save project file: ${error.message}`);
+            }
         }
 
-        // Step 6: Compress and save
-        await compressProject(xmlDoc, outputPath);
+        /**
+         * Compress data as GZip
+         * @param {string} text - Text to compress
+         * @returns {Promise<Uint8Array>} Compressed data
+         */
+        async function compressGZip(text) {
+            // Check if native CompressionStream is available
+            if (typeof CompressionStream !== 'undefined') {
+                try {
+                    const stream = new CompressionStream('gzip');
+                    const blob = new Blob([text]);
+                    const compressedStream = blob.stream().pipeThrough(stream);
+                    const compressedBlob = await new Response(compressedStream).blob();
+                    return new Uint8Array(await compressedBlob.arrayBuffer());
+                } catch (e) {
+                    console.error('CompressionStream failed:', e);
+                    throw e;
+                }
+            }
 
-        console.log('Project relinking completed successfully');
-        return {
-            success: true,
-            updatedPaths: updatedCount,
-            errors: []
+            // Fallback: Try using pako library if available
+            if (typeof pako !== 'undefined') {
+                const textEncoder = new TextEncoder();
+                const data = textEncoder.encode(text);
+                return pako.gzip(data);
+            }
+
+            throw new Error('No GZip compression available');
+        }
+
+        /**
+         * Validate project XML structure
+         * @param {Document} xmlDoc - XML document to validate
+         * @returns {{valid: boolean, errors: Array<string>}} Validation result
+         */
+        function validateProject(xmlDoc) {
+            const errors = [];
+
+            // Check for parser errors
+            const parserError = xmlDoc.querySelector('parsererror');
+            if (parserError) {
+                errors.push('XML parsing error: ' + parserError.textContent);
+            }
+
+            // Check for root element
+            const root = xmlDoc.documentElement;
+            if (!root) {
+                errors.push('No root element found');
+                return { valid: false, errors };
+            }
+
+            // Check for expected Premiere Pro structure
+            const expectedRoots = ['PremiereData', 'xmeml', 'Project'];
+            if (!expectedRoots.includes(root.tagName)) {
+                errors.push(`Unexpected root element: ${root.tagName}`);
+            }
+
+            // Validate that paths are properly formatted
+            const pathElements = xmlDoc.querySelectorAll('[pathurl], [filepath]');
+            pathElements.forEach((element, index) => {
+                const pathurl = element.getAttribute('pathurl') || element.getAttribute('filepath');
+                if (pathurl && pathurl.includes('<') || pathurl.includes('>')) {
+                    errors.push(`Invalid path format at element ${index}: contains XML characters`);
+                }
+            });
+
+            const valid = errors.length === 0;
+
+            if (valid) {
+                console.log('Project XML validation passed');
+            } else {
+                console.error('Project XML validation failed:', errors);
+            }
+
+            return { valid, errors };
+        }
+
+        /**
+         * Main function: Relink project file with new asset paths
+         * @param {string} projectPath - Path to original .prproj file
+         * @param {string} outputPath - Path where to save updated .prproj file
+         * @param {Object} collectionResult - Result from asset collection
+         * @returns {Promise<{success: boolean, updatedPaths: number, errors: Array}>} Relinking result
+         */
+        async function relinkProject(projectPath, outputPath, collectionResult) {
+            const errors = [];
+
+            try {
+                console.log('Starting project relinking...');
+                console.log('Original project:', projectPath);
+                console.log('Output project:', outputPath);
+
+                // Step 1: Decompress and parse project
+                const { xmlDoc, originalXml } = await decompressProject(projectPath);
+
+                // Step 2: Extract paths
+                const pathReferences = extractPaths(xmlDoc);
+
+                if (pathReferences.length === 0) {
+                    console.warn('No media paths found in project');
+                    return {
+                        success: true,
+                        updatedPaths: 0,
+                        errors: ['No media paths found in project']
+                    };
+                }
+
+                // Step 3: Create path mapping
+                const pathMapping = createPathMapping(pathReferences, collectionResult);
+
+                if (pathMapping.size === 0) {
+                    console.warn('No path mappings created');
+                    return {
+                        success: true,
+                        updatedPaths: 0,
+                        errors: ['No matching paths found to update']
+                    };
+                }
+
+                // Step 4: Rewrite paths
+                const updatedCount = rewritePaths(xmlDoc, pathReferences, pathMapping);
+
+                // Step 5: Validate updated XML
+                const validation = validateProject(xmlDoc);
+                if (!validation.valid) {
+                    throw new Error('Project validation failed: ' + validation.errors.join(', '));
+                }
+
+                // Step 6: Compress and save
+                await compressProject(xmlDoc, outputPath);
+
+                console.log('Project relinking completed successfully');
+                return {
+                    success: true,
+                    updatedPaths: updatedCount,
+                    errors: []
+                };
+
+            } catch (error) {
+                console.error('Project relinking failed:', error);
+                return {
+                    success: false,
+                    updatedPaths: 0,
+                    errors: [error.message]
+                };
+            }
+        }
+
+        // Export functions
+        module.exports = {
+            relinkProject,
+            decompressProject,
+            extractPaths,
+            createPathMapping,
+            rewritePaths,
+            compressProject,
+            validateProject
         };
-
-    } catch (error) {
-        console.error('Project relinking failed:', error);
-        return {
-            success: false,
-            updatedPaths: 0,
-            errors: [error.message]
-        };
-    }
-}
-
-// Export functions
-module.exports = {
-    relinkProject,
-    decompressProject,
-    extractPaths,
-    createPathMapping,
-    rewritePaths,
-    compressProject,
-    validateProject
-};
