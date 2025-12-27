@@ -89,10 +89,9 @@ async function saveProjectAs(newPath) {
  * @returns {Promise<boolean>} Success status
  */
 async function updateAssetPaths(pathMapping) {
-    // TODO: Implement in Phase 5
-    // This is complex and may require working with project file format
-    
-    console.log('updateAssetPaths placeholder');
+    // This functionality has been moved to projectRelinking.js module
+    // Use relinkProject() function instead for full project relinking
+    console.log('updateAssetPaths - use projectRelinking.relinkProject() instead');
     return true;
 }
 
@@ -104,8 +103,8 @@ function hasUnsavedChanges() {
     // TODO: Implement using Premiere Pro API
     return false;
 }
-Promise<boolean>} True if project has unsaved changes
- */
+Promise < boolean >} True if project has unsaved changes
+    */
 async function hasUnsavedChanges() {
     try {
         const project = await getProject();

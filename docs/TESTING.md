@@ -560,26 +560,416 @@ for (const asset of assets.slice(0, 3)) {
 
 ## Phase 5: Project Relinking Testing
 
-**Status:** ⏳ Not Started
+**Status**: Implemented ✅
 
-### What to Test
+Phase 5 implements automatic project relinking to update the collected project file with new asset paths. The relinked project should open without "Link Media" prompts.
 
-1. **Path Updating**
-   - Project file is correctly modified
-   - All file paths point to new locations
-   - Sequences still reference correct clips
-   - Effects and transitions are preserved
+### Test Scenario 5.1: Basic Project Relinking
 
-2. **Project Saving**
-   - Project saves to destination folder
-   - Original project remains unchanged
-   - New project is functional in Premiere Pro
+**Objective**: Verify project file is copied and relinked successfully
 
-### Testing Steps (Will be updated in Phase 5)
+**Preparation**:
+1. Create a small Premiere Pro project with 3-5 video clips
+2. Save the project
+3. Note the original file paths of the clips
+
+**Steps**:
+1. Open the project in Premiere Pro
+2. Open Asset Collector extension
+3. Select a destination folder
+4. Enable "Maintain Structure" option
+5. Click "Collect Assets"
+6. Wait for completion
+
+**Expected Results**:
+- ✅ Original .prproj file is copied to destination folder
+- ✅ Progress message shows "Updating project file..."
+- ✅ Status message shows "Project file updated with X new paths"
+- ✅ Results display shows "Project Relinked: Yes"
+- ✅ No errors in console related to relinking
+
+**Verification**:
+- Close current project
+- Open the copied .prproj from destination folder
+- All clips should be online (green in Project panel)
+- Playback should work without "Link Media" dialog
+
+---
+
+### Test Scenario 5.2: Flat Folder Mode Relinking
+
+**Objective**: Verify relinking works when all files are in a single folder
+
+**Preparation**:
+1. Create project with clips from multiple original folders
+2. Save the project
+
+**Steps**:
+1. Open Asset Collector
+2. Select destination
+3. Disable "Maintain Structure" (flat mode)
+4. Collect assets
+
+**Expected Results**:
+- ✅ All media files copied to single destination folder
+- ✅ Project file updated with flat paths
+- ✅ No path references to original folder structure
+
+**Verification**:
+- Open copied project
+- Check all clips reference files in destination root
+- No "Link Media" dialog appears
+
+---
+
+### Test Scenario 5.3: Large Project Relinking
+
+**Objective**: Test relinking with many assets (50+ clips)
+
+**Preparation**:
+1. Create or use existing large project (50+ clips)
+2. Mix of video, audio, images
+3. Save project
+
+**Steps**:
+1. Open Asset Collector
+2. Select destination
+3. Choose any folder mode
+4. Collect assets
+
+**Expected Results**:
+- ✅ All paths updated in project file
+- ✅ Progress indicator shows relinking progress
+- ✅ Completion time reasonable (< 30 seconds for 100 clips)
+- ✅ No memory errors or crashes
+
+**Verification**:
+- Open copied project
+- Spot-check several clips (beginning, middle, end)
+- All should be online
+
+---
+
+### Test Scenario 5.4: Special Characters in Paths
+
+**Objective**: Verify URL encoding/decoding handles special characters
+
+**Preparation**:
+1. Create folder with spaces: "My Project Files"
+2. Create folder with special chars: "Client#1 (2024)"
+3. Place clips in these folders
+4. Create and save project
+
+**Steps**:
+1. Collect assets with Asset Collector
+
+**Expected Results**:
+- ✅ Paths with spaces correctly encoded/decoded
+- ✅ Special characters (#, (), etc.) handled
+- ✅ No XML parsing errors
+- ✅ Project opens with all files online
+
+---
+
+### Test Scenario 5.5: Mixed Path Types
+
+**Objective**: Test projects with absolute and relative paths
+
+**Preparation**:
+1. Create project with mix of:
+   - Absolute paths (/Users/name/...)
+   - Relative paths (./footage/...)
+   - Network paths (if applicable)
+2. Save project
+
+**Steps**:
+1. Collect assets
+
+**Expected Results**:
+- ✅ All path types detected and updated
+- ✅ New paths are correctly formatted
+- ✅ Prefer relative paths in output when possible
+
+---
+
+### Test Scenario 5.6: Offline Files Handling
+
+**Objective**: Verify relinking handles projects with offline media
+
+**Preparation**:
+1. Create project with some clips
+2. Delete or move 2-3 source files (make them offline)
+3. Save project
+
+**Steps**:
+1. Collect assets
+2. Check results
+
+**Expected Results**:
+- ✅ Online files copied and relinked
+- ✅ Offline files reported in results
+- ✅ Project file still updated for available files
+- ✅ Offline clips remain offline in copied project
+
+---
+
+### Test Scenario 5.7: Unsaved Project
+
+**Objective**: Verify graceful handling when project not saved
+
+**Preparation**:
+1. Create new project
+2. Import clips
+3. Do NOT save project
+
+**Steps**:
+1. Attempt to collect assets
+
+**Expected Results**:
+- ✅ Files copied successfully
+- ✅ Message: "Project not saved - cannot update project file"
+- ✅ No .prproj file in destination
+- ✅ No errors, just info message
+
+---
+
+### Test Scenario 5.8: GZip Compression/Decompression
+
+**Objective**: Verify proper handling of .prproj compression
+
+**Preparation**:
+1. Create and save project (Premiere saves as GZip)
+
+**Steps**:
+1. Collect assets
+2. Check console logs for compression messages
+
+**Expected Results**:
+- ✅ Log shows: "Project file parsed successfully"
+- ✅ Log shows: "Project file saved successfully"
+- ✅ No GZip errors
+- ✅ Output file size reasonable (compressed)
+
+**Verification**:
+```bash
+# Check if file is GZip compressed
+file destination/project.prproj
+# Should show: "gzip compressed data"
+```
+
+---
+
+### Test Scenario 5.9: XML Validation
+
+**Objective**: Verify XML structure remains valid after rewriting
+
+**Preparation**:
+1. Create project with nested sequences
+2. Save project
+
+**Steps**:
+1. Collect assets
+2. Check console for validation messages
+
+**Expected Results**:
+- ✅ Log shows: "Project XML validation passed"
+- ✅ No XML parsing errors
+- ✅ Project structure intact
+
+**Manual Verification**:
+```bash
+# Decompress and check XML
+gunzip -c destination/project.prproj | head -50
+# Should show valid XML structure
+```
+
+---
+
+### Test Scenario 5.10: Path Normalization
+
+**Objective**: Test cross-platform path handling
+
+**Preparation**:
+1. Create project with various path formats
+
+**Steps**:
+1. Collect assets on macOS
+2. Note path separators in output
+
+**Expected Results**:
+- ✅ Windows paths (\) converted to forward slash (/)
+- ✅ Mixed separators normalized
+- ✅ URL encoding consistent
+
+---
+
+### Test Scenario 5.11: Duplicate Filename Handling
+
+**Objective**: Verify relinking works with auto-renamed files
+
+**Preparation**:
+1. Create project with clips from different folders
+2. Ensure some clips have same filename (different folders)
+3. Save project
+
+**Steps**:
+1. Use flat folder mode to trigger rename conflicts
+2. Collect assets
+
+**Expected Results**:
+- ✅ Files renamed with suffixes (file_1.mp4, file_2.mp4)
+- ✅ Project paths updated to match renamed files
+- ✅ All clips online after opening copied project
+
+---
+
+### Test Scenario 5.12: Nested Sequences
+
+**Objective**: Verify sequences nested in other sequences work
+
+**Preparation**:
+1. Create main sequence with clips
+2. Create sub-sequence
+3. Nest sub-sequence in main sequence
+4. Save project
+
+**Steps**:
+1. Collect assets
+
+**Expected Results**:
+- ✅ All sequence media paths updated
+- ✅ Nested structure preserved
+- ✅ Sequences play correctly in copied project
+
+---
+
+### Test Scenario 5.13: Error Recovery
+
+**Objective**: Test relinking failure doesn't break file collection
+
+**Preparation**:
+1. Create project and save
+2. Manually corrupt project file (optional stress test)
+
+**Steps**:
+1. Collect assets
+
+**Expected Results**:
+- ✅ Files copy successfully even if relinking fails
+- ✅ Error message: "Files copied successfully, but project relinking failed"
+- ✅ Original project never modified
+- ✅ Extension remains stable
+
+---
+
+### Test Scenario 5.14: Performance Timing
+
+**Objective**: Measure relinking performance
+
+**Test Matrix**:
+
+| Project Size | Files | Expected Time | Actual Time |
+|--------------|-------|---------------|-------------|
+| Small        | 5     | < 1s          | _____       |
+| Medium       | 25    | < 5s          | _____       |
+| Large        | 100   | < 20s         | _____       |
+| Extra Large  | 500   | < 60s         | _____       |
+
+**Steps**:
+1. For each project size, collect assets
+2. Note time from "Updating project file..." to completion
+3. Record in table above
+
+**Expected Results**:
+- ✅ Times within expected ranges
+- ✅ No performance degradation
+- ✅ Progress updates smooth
+
+---
+
+### Testing Checklist - Phase 5
+
+Copy this to manually verify:
 
 ```
-[To be completed in Phase 5]
+□ Basic relinking works (5.1)
+□ Flat folder mode relinking (5.2)
+□ Large project relinking (5.3)
+□ Special characters in paths (5.4)
+□ Mixed path types (5.5)
+□ Offline files handled (5.6)
+□ Unsaved project handled (5.7)
+□ GZip compression works (5.8)
+□ XML validation passes (5.9)
+□ Path normalization works (5.10)
+□ Duplicate filenames handled (5.11)
+□ Nested sequences work (5.12)
+□ Error recovery graceful (5.13)
+□ Performance acceptable (5.14)
 ```
+
+---
+
+### Console Testing Examples
+
+Test path extraction:
+```javascript
+const { decompressProject, extractPaths } = require('./js/projectRelinking.js');
+
+// Test on a sample project
+const projectPath = '/path/to/project.prproj';
+const { xmlDoc } = await decompressProject(projectPath);
+const paths = extractPaths(xmlDoc);
+console.log('Found paths:', paths.length);
+paths.forEach(p => console.log(p.path));
+```
+
+Test path mapping:
+```javascript
+const { createPathMapping } = require('./js/projectRelinking.js');
+
+const pathRefs = [
+  { path: '/Users/me/original/video.mp4' },
+  { path: '/Users/me/original/audio.wav' }
+];
+
+const collectionResult = {
+  copiedFiles: [
+    { original: '/Users/me/original/video.mp4', destination: '/dest/video.mp4' },
+    { original: '/Users/me/original/audio.wav', destination: '/dest/audio.wav' }
+  ]
+};
+
+const mapping = createPathMapping(pathRefs, collectionResult);
+console.log('Mapping:', mapping);
+```
+
+Test URL encoding:
+```javascript
+const path = '/Users/me/My Project/video file.mp4';
+const encoded = encodePathUrl(path);
+console.log('Encoded:', encoded);
+// Should be: file://localhost/Users/me/My%20Project/video%20file.mp4
+```
+
+---
+
+### Known Limitations
+
+1. **Premiere Pro Version Compatibility**: Tested primarily with recent versions. Older versions may have different XML schemas.
+
+2. **MOGRT Templates**: Motion Graphics Templates with embedded paths may not fully relink if paths are deeply nested in template structure.
+
+3. **Plugin References**: Third-party plugins with file references may not be detected.
+
+4. **Dynamic Link**: After Effects compositions via Dynamic Link won't be relinked (separate .aep files).
+
+5. **Network Paths**: UNC paths (\\server\share) may have limited support depending on platform.
+
+---
+
+**Phase 5 Testing Status**: Ready for testing ✅
+**Estimated Testing Time**: 2-3 hours for complete test suite
 
 ---
 

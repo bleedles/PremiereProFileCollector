@@ -9,6 +9,7 @@ const fs = require('uxp').storage.localFileSystem;
 const { getProjectAssets, deduplicateAssets, categorizeAssets } = require('./js/assetCollector.js');
 const { copyFiles, createFolderStructure, calculateTotalSize } = require('./js/fileOperations.js');
 const { getProject, getProjectName, getProjectPath } = require('./js/projectAPI.js');
+const { relinkProject } = require('./js/projectRelinking.js');
 
 // State management
 let state = {
@@ -28,10 +29,10 @@ let state = {
  */
 async function initialize() {
     console.log('Asset Collector: Initializing...');
-    
+
     // Set up event listeners
     setupEventListeners();
-    
+
     // Check if a project is open
     try {
         const project = await getProject();
@@ -52,20 +53,20 @@ function setupEventListeners() {
     // Browse button
     const browseButton = document.getElementById('browseButton');
     browseButton.addEventListener('click', handleBrowseClick);
-    
+
     // Collect button
     const collectButton = document.getElementById('collectButton');
     collectButton.addEventListener('click', handleCollectClick);
-    
+
     // Options checkboxes
     document.getElementById('includeUnused').addEventListener('change', (e) => {
         state.options.includeUnused = e.target.checked;
     });
-    
+
     document.getElementById('maintainStructure').addEventListener('change', (e) => {
         state.options.maintainStructure = e.target.checked;
     });
-    
+
     document.getElementById('consolidate').addEventListener('change', (e) => {
         state.options.consolidate = e.target.checked;
     });
@@ -80,7 +81,7 @@ async function handleBrowseClick() {
         if (folder) {
             state.destinationFolder = folder;
             document.getElementById('destinationPath').value = folder.nativePath;
-            
+
             // Update button state
             const collectButton = document.getElementById('collectButton');
             collectButton.disabled = false;
@@ -88,7 +89,7 @@ async function handleBrowseClick() {
             if (hint) {
                 hint.textContent = 'Ready to collect';
             }
-            
+
             showStatus('Destination folder selected.', 'success');
         }
     } catch (error) {
@@ -105,7 +106,7 @@ async function handleCollectClick() {
         showStatus('Please select a destination folder first.', 'warning');
         return;
     }
-    
+
     try {
         // Check if project is open
         const project = await getProject();
@@ -113,19 +114,19 @@ async function handleCollectClick() {
             showStatus('No project is currently open.', 'error');
             return;
         }
-        
+
         state.collectionInProgress = true;
         document.getElementById('collectButton').disabled = true;
-        
+
         // Show progress section
         document.getElementById('progressSection').style.display = 'block';
         document.getElementById('resultsSection').style.display = 'none';
-        
+
         showStatus('Starting asset collection...', 'info');
-        
+
         // Perform asset collection
         await performAssetCollection();
-        
+
     } catch (error) {
         console.error('Error collecting assets:', error);
         showStatus('Error collecting assets: ' + error.message, 'error');
@@ -144,7 +145,7 @@ async function performAssetCollection() {
         // Phase 2: Get project assets
         updateProgress(10, 'Enumerating project items...');
         const allAssets = await getProjectAssets(state.options);
-        
+
         if (allAssets.length === 0) {
             showStatus('No assets found in project.', 'warning');
             updateProgress(100, 'No assets to collect.');
@@ -157,14 +158,14 @@ async function performAssetCollection() {
             });
             return;
         }
-        
-        console.log(`Fo20, `Found ${allAssets.length} assets. Analyzing...`);
+
+        console.log(`Fo20, `Found ${ allAssets.length } assets.Analyzing...`);
         
         // Separate online and offline files
         const onlineAssets = allAssets.filter(asset => !asset.isOffline);
         const offlineAssets = allAssets.filter(asset => asset.isOffline);
         
-        console.log(`Online: ${onlineAssets.length}, Offline: ${offlineAssets.length}`);
+        console.log(`Online: ${ onlineAssets.length }, Offline: ${ offlineAssets.length }`);
         
         if (onlineAssets.length === 0) {
             showStatus('No online assets to copy. All files are offline.', 'warning');
@@ -192,7 +193,7 @@ async function performAssetCollection() {
         // Calculate total size
         updateProgress(40, 'Calculating file sizes...');
         const totalSize = await calculateTotalSize(onlineAssets);
-        console.log(`Total size: ${formatBytes(totalSize)}`);
+        console.log(`Total size: ${ formatBytes(totalSize) }`);
         
         // Phase 4: Copy files
         updateProgress(50, 'Starting file copy...');
@@ -202,11 +203,51 @@ async function performAssetCollection() {
             state.destinationFolder,
             state.options,
             (progress, message) => {
-                // Map 0-100 of copy progress to 50-95 of overall progress
-                const overallProgress = 50 + Math.round(progress * 0.45);
+                // Map 0-100 of copy progress to 50-90 of overall progress
+                const overallProgress = 50 + Math.round(progress * 0.40);
                 updateProgress(overallProgress, message);
             }
         );
+        
+        // Phase 5: Relink project file (if project is saved)
+        updateProgress(90, 'Updating project file...');
+        let relinkingResult = null;
+        
+        try {
+            const projectPath = await getProjectPath();
+            
+            if (projectPath) {
+                // Create output project path
+                const projectFileName = projectPath.substring(projectPath.lastIndexOf('/') + 1);
+                const outputProjectPath = state.destinationFolder.nativePath + '/' + projectFileName;
+                
+                // Add copied files info to collection result for path mapping
+                const collectionResult = {
+                    copiedFiles: copyResults.success.map(file => ({
+                        original: file.originalPath,
+                        destination: file.destinationPath
+                    }))
+                };
+                
+                // Relink project
+                relinkingResult = await relinkProject(projectPath, outputProjectPath, collectionResult);
+                
+                if (relinkingResult.success) {
+                    console.log(`Project relinked: ${ relinkingResult.updatedPaths } paths updated`);
+                    showStatus(`Project file updated with ${ relinkingResult.updatedPaths } new paths`, 'success');
+                } else {
+                    console.warn('Project relinking had issues:', relinkingResult.errors);
+                    showStatus('Project file copied but relinking had issues', 'warning');
+                }
+            } else {
+                console.log('Project is not saved, skipping relinking');
+                showStatus('Project not saved - cannot update project file', 'info');
+            }
+        } catch (relinkError) {
+            console.error('Error during project relinking:', relinkError);
+            showStatus('Files copied successfully, but project relinking failed', 'warning');
+            relinkingResult = { success: false, errors: [relinkError.message] };
+        }
         
         updateProgress(100, 'Collection complete!');
         
@@ -216,14 +257,18 @@ async function performAssetCollection() {
             totalSize: copyResults.totalBytes,
             missingFiles: offlineAssets.length,
             errors: copyResults.failed.length,
-            errorMessages: copyResults.errors
+            errorMessages: copyResults.errors,
+            projectRelinked: relinkingResult ? relinkingResult.success : false,
+            relinkingErrors: relinkingResult ? relinkingResult.errors : []
         };
         
         // Show results
         showResults(results);
         
         if (results.errors > 0) {
-            showStatus(`Collection completed with ${results.errors} error(s).`, 'warning');
+            showStatus(`Collection completed with ${ results.errors } error(s).`, 'warning');
+        } else if (relinkingResult && !relinkingResult.success) {
+            showStatus('Assets collected successfully, but project relinking had issues.', 'warning');
         } else {
             showStatus('Asset collection completed successfully!', 'success');
         }
@@ -247,7 +292,7 @@ function updateProgress(percent, text, subtext = '') {
     const progressSubtext = document.getElementById('progressSubtext');
     
     progressFill.style.width = percent + '%';
-    progressText.textContent = text || `${percent}% complete`;
+    progressText.textContent = text || `${ percent }% complete`;
     if (subtext) {
         progressSubtext.textContent = subtext;
     }
@@ -267,7 +312,7 @@ function showResults(results) {
     const errorList = document.getElementById('errorList');
     if (results.errors > 0 && results.errorMessages.length > 0) {
         errorList.innerHTML = '<h4>Errors:</h4>' + 
-            results.errorMessages.map(err => `<div class="error-item">${err}</div>`).join('');
+            results.errorMessages.map(err => `< div class="error-item" > ${ err }</div > `).join('');
         errorList.style.display = 'block';
     } else {
         errorList.style.display = 'none';
